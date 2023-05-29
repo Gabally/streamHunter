@@ -1,4 +1,4 @@
-import requests, sys, socket, string
+import requests, sys, socket, argparse
 from bs4 import BeautifulSoup
 from random import randint
 from halo import Halo
@@ -25,7 +25,6 @@ def printError(txt):
 def printSuccess(txt):
     print('[' + terminalColors.OKGREEN + terminalColors.BOLD + '+' + terminalColors.ENDC + ']' + txt)
 
-"""
 def obtainMac(ip):
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -56,6 +55,23 @@ def scanPort(ip, p, l):
         l.append(p)
     s.close()
 
+parser = argparse.ArgumentParser(
+    prog='streamhunter',
+    description='Automatically find the streaming URL for a specific IP Camera'
+)
+
+parser.add_argument('--ip',  required=True, type=str, help='The IP Camera address')
+
+group = parser.add_mutually_exclusive_group()
+
+group.add_argument('--default-credentials', nargs='?', default=argparse.SUPPRESS, help='Tries to authenticate using a list of commonm default credentials')
+
+creds = group.add_argument_group()
+creds.add_argument('--user', type=str, help='The user to use to authenticate')
+creds.add_argument('--pass', type=str, help='The password to use to authenticate')
+
+args = parser.parse_args()
+
 ip = '192.168.6.76'
 
 print('Gathering clues about {}...'.format(ip))
@@ -83,7 +99,7 @@ openPorts = []
 threads = []
 
 for port in range(1, 65535):
-    t = Thread(target=scanPort, args=(ip, port, openPorts))
+    t = Thread(target=scanPort, args=(ip, port, openPorts), daemon=True)
     t.start()
     threads.append(t)
 
@@ -93,7 +109,6 @@ for t in threads:
 
 spinner.stop()
 printSuccess('Open ports:\n{}'.format('\n'.join([ '\t- ' + str(e) + '/tcp' for e in openPorts ])))
-"""
 
 spinner = Halo(text='Fetching connection strings database...', spinner='dots')
 spinner.start()
@@ -113,7 +128,6 @@ for l in index:
 
 spinner.stop()
 
-"""
 modelsPage =  requests.get('https://www.ispyconnect.com/cameras', headers = normalHeaders)
 
 if (modelsPage.status_code != 200):
@@ -141,4 +155,3 @@ for e in cameraUrlsRaw:
         cameraUrls.append((e[0].text.split(', '), e[1].text, e[2].text, e[3].text))
 
 print(cameraUrls)
-"""
