@@ -70,20 +70,28 @@ creds = group.add_argument_group()
 creds.add_argument('--user', type=str, help='The user to use to authenticate')
 creds.add_argument('--pass', type=str, help='The password to use to authenticate')
 
+print("""
+      ___________
+     |           |___
+     |           |___]
+     |___________|
+         |   |
+    |____|   |
+    |_______/
+    |  
+""")
 args = parser.parse_args()
 
-ip = '192.168.6.76'
-
-print('Gathering clues about {}...'.format(ip))
+print('Gathering clues about {}...'.format(args.ip))
 
 try:
-    hostname = socket.gethostbyaddr(ip)[0]
+    hostname = socket.gethostbyaddr(args.ip)[0]
 
     printSuccess('Obtained hostname ({})'.format(hostname))
 except:
     printError('Failed to obtain hostname')
 
-mac = obtainMac(ip)
+mac = obtainMac(args.ip)
 
 if (mac is not None):
     macInfo = requests.get('https://api.maclookup.app/v2/macs/' + mac).json()
@@ -99,7 +107,7 @@ openPorts = []
 threads = []
 
 for port in range(1, 65535):
-    t = Thread(target=scanPort, args=(ip, port, openPorts), daemon=True)
+    t = Thread(target=scanPort, args=(args.ip, port, openPorts), daemon=True)
     t.start()
     threads.append(t)
 
