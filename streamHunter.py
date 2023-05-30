@@ -109,7 +109,7 @@ else:
 spinner = Halo(text='Scanning ports...', spinner='dots')
 spinner.start()
 
-openPorts = []
+openPorts = [5000]
 
 threads = []
 
@@ -124,6 +124,70 @@ for t in threads:
 
 spinner.stop()
 printSuccess('Open ports:\n{}'.format('\n'.join([ '\t- ' + str(e) + '/tcp' for e in openPorts ])))
+
+#spinner = Halo(text='Attempting to fetch connection strings with ONVIF...', spinner='dots')
+#spinner.start()
+
+getProfilesPayload = """
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:wsdl="http://www.onvif.org/ver10/media/wsdl">
+  <soap:Header/>
+  <soap:Body>
+    <wsdl:GetProfiles/>
+   </soap:Body>
+</soap:Envelope>
+"""
+
+getProfilesHeaders = {
+    'Content-Type': 'application/soap+xml; charset=utf-8',
+    'SOAPAction': '"http://www.onvif.org/ver10/media/wsdl/GetProfiles"'
+}
+
+for p in openPorts:
+    r = None
+    https = False
+    try:
+        r = requests.post('http://{}:{}/{}'.format(args.ip, p, 'onvif/device_service'), data=getProfilesPayload, headers=getProfilesHeaders, timeout=3)
+    except Exception as e:
+        try:
+            r = requests.post('https://{}:{}/{}'.format(args.ip, p, 'onvif/device_service'), 
+                                                        data=getProfilesPayload,
+                                                        headers=getProfilesHeaders,
+                                                        timeout=3,
+                                                        verify=False)
+            https = True
+        except Exception as e:
+            pass
+        
+    if r is not None and r.status_code == 200:
+        soup = BeautifulSoup(r.text, 'xml')
+        for e in soup.select('[token]'):
+            token = e.attrs['token']
+            payload = """
+            <soap:Envelope
+            xmlns:soap="http://www.w3.org/2003/05/soap-envelope"
+            xmlns:wsdl="http://www.onvif.org/ver10/media/wsdl"
+            >
+            <soap:Header/>
+            <soap:Body>
+                <wsdl:GetStreamUri>
+                <wsdl:ProfileToken>{}</wsdl:ProfileToken>
+                </wsdl:GetStreamUri>
+            </soap:Body>
+            </soap:Envelope>
+            """.format(token)
+            r = requests.post('{}://{}:{}/{}'.format('https' if https else 'http', args.ip, p, 'onvif/device_service'), 
+                                                     data=payload,
+                                                     headers={
+                                                         'Content-Type': 'application/soap+xml; charset=utf-8',
+                                                         'SOAPAction': '"http://www.onvif.org/ver10/media/wsdl/GetStreamUri"'
+                                                     },
+                                                     timeout=3,
+                                                     verify=False)
+            uriSoup = BeautifulSoup(r.text, 'xml')
+            for uri in uriSoup.find_all('tt:Uri'):
+                print(uri.text)
+
+#spinner.stop()
 
 spinner = Halo(text='Fetching connection strings database...', spinner='dots')
 spinner.start()
