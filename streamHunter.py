@@ -84,7 +84,8 @@ print(terminalColors.BOLD + terminalColors.OKBLUE + """
 args = parser.parse_args()
 
 try:
-    ipaddress.ip_address(args.ip)
+    if (ipaddress.ip_address(args.ip).version != 4):
+        raise Exception("Ip must be an IPv4")
 except:
     sys.exit("Error:\nInvalid IP: {}".format(args.ip))
 
