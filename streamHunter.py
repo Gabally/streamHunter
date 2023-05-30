@@ -70,16 +70,17 @@ creds = group.add_argument_group()
 creds.add_argument('--user', type=str, help='The user to use to authenticate')
 creds.add_argument('--pass', type=str, help='The password to use to authenticate')
 
-print("""
+print(terminalColors.BOLD + terminalColors.OKBLUE + """
       ___________
-     |           |___
-     |           |___]
-     |___________|
-         |   |
-    |____|   |
-    |_______/
-    |  
-""")
+     |           |___     ____  _                              _   _             _            
+     |           |___|   / ___|| |_ _ __ ___  __ _ _ __ ___   | | | |_   _ _ __ | |_ ___ _ __ 
+     |___________|       \___ \| __| '__/ _ \/ _` | '_ ` _ \  | |_| | | | | '_ \| __/ _ \ '__|
+         |   |            ___) | |_| | |  __/ (_| | | | | | | |  _  | |_| | | | | ||  __/ | 
+    |____|   |           |____/ \__|_|  \___|\__,_|_| |_| |_| |_| |_|\__,_|_| |_|\__\___|_|  
+    |________/
+    |
+""" + terminalColors.ENDC)                                                                 
+
 args = parser.parse_args()
 
 print('Gathering clues about {}...'.format(args.ip))
