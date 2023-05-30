@@ -1,4 +1,4 @@
-import requests, sys, socket, argparse
+import requests, sys, socket, argparse, ipaddress
 from bs4 import BeautifulSoup
 from random import randint
 from halo import Halo
@@ -62,13 +62,13 @@ parser = argparse.ArgumentParser(
 
 parser.add_argument('--ip',  required=True, type=str, help='The IP Camera address')
 
-group = parser.add_mutually_exclusive_group()
+group = parser.add_mutually_exclusive_group(required=True)
 
 group.add_argument('--default-credentials', nargs='?', default=argparse.SUPPRESS, help='Tries to authenticate using a list of commonm default credentials')
 
-creds = group.add_argument_group()
-creds.add_argument('--user', type=str, help='The user to use to authenticate')
-creds.add_argument('--pass', type=str, help='The password to use to authenticate')
+group.add_argument('--user', type=str, help='The user to use to authenticate')
+
+parser.add_argument('--pass', type=str, help='The password to use to authenticate', required= '--user' in sys.argv)
 
 print(terminalColors.BOLD + terminalColors.OKBLUE + """
       ___________
@@ -82,6 +82,11 @@ print(terminalColors.BOLD + terminalColors.OKBLUE + """
 """ + terminalColors.ENDC)                                                                 
 
 args = parser.parse_args()
+
+try:
+    ipaddress.ip_address(args.ip)
+except:
+    sys.exit("Error:\nInvalid IP: {}".format(args.ip))
 
 print('Gathering clues about {}...'.format(args.ip))
 
