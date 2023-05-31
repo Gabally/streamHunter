@@ -71,14 +71,13 @@ group.add_argument('--user', type=str, help='The user to use to authenticate')
 parser.add_argument('--pass', type=str, help='The password to use to authenticate', required= '--user' in sys.argv)
 
 print(terminalColors.BOLD + terminalColors.OKBLUE + """
-      ___________
-     |           |___     ____  _                              _   _             _            
-     |           |___|   / ___|| |_ _ __ ___  __ _ _ __ ___   | | | |_   _ _ __ | |_ ___ _ __ 
-     |___________|       \___ \| __| '__/ _ \/ _` | '_ ` _ \  | |_| | | | | '_ \| __/ _ \ '__|
-         |   |            ___) | |_| | |  __/ (_| | | | | | | |  _  | |_| | | | | ||  __/ | 
-    |____|   |           |____/ \__|_|  \___|\__,_|_| |_| |_| |_| |_|\__,_|_| |_|\__\___|_|  
-    |________/
-    |
+     ┌───────────┐
+     │ ▒▒▒▒▒▒▒▒  │───┐    ____  _                              _   _             _            
+     │           │───┘   / ___|| |_ _ __ ___  __ _ _ __ ___   | | | |_   _ _ __ | |_ ___ _ __ 
+     └───┬───┬───┘       \___ \| __| '__/ _ \/ _` | '_ ` _ \  | |_| | | | | '_ \| __/ _ \ '__|
+    ├────┘   |            ___) | |_| | |  __/ (_| | | | | | | |  _  | |_| | | | | ||  __/ | 
+    ├────────┘           |____/ \__|_|  \___|\__,_|_| |_| |_| |_| |_|\__,_|_| |_|\__\___|_|  
+
 """ + terminalColors.ENDC)                                                                 
 
 args = parser.parse_args()
@@ -125,8 +124,8 @@ for t in threads:
 spinner.stop()
 printSuccess('Open ports:\n{}'.format('\n'.join([ '\t- ' + str(e) + '/tcp' for e in openPorts ])))
 
-#spinner = Halo(text='Attempting to fetch connection strings with ONVIF...', spinner='dots')
-#spinner.start()
+spinner = Halo(text='Attempting to fetch connection strings with ONVIF...', spinner='dots')
+spinner.start()
 
 getProfilesPayload = """
 <soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope" xmlns:wsdl="http://www.onvif.org/ver10/media/wsdl">
@@ -141,6 +140,8 @@ getProfilesHeaders = {
     'Content-Type': 'application/soap+xml; charset=utf-8',
     'SOAPAction': '"http://www.onvif.org/ver10/media/wsdl/GetProfiles"'
 }
+
+onvifURLs = []
 
 for p in openPorts:
     r = None
@@ -185,9 +186,16 @@ for p in openPorts:
                                                      verify=False)
             uriSoup = BeautifulSoup(r.text, 'xml')
             for uri in uriSoup.find_all('tt:Uri'):
-                print(uri.text)
+                onvifURLs.append(uri.text)
 
-#spinner.stop()
+onvifURLs = list(set(onvifURLs))
+
+spinner.stop()
+
+if len(onvifURLs) > 0:
+    printSuccess('URL\'s found:\n{}'.format('\n'.join([ '\t- ' + str(e) for e in onvifURLs ])))
+else:
+    printError('No URL\'s found using ONVIF')
 
 spinner = Halo(text='Fetching connection strings database...', spinner='dots')
 spinner.start()
