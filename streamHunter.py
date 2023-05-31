@@ -72,10 +72,10 @@ parser.add_argument('--pass', type=str, help='The password to use to authenticat
 
 print(terminalColors.BOLD + terminalColors.OKBLUE + """
      ┌───────────┐
-     │ ▒▒▒▒▒▒▒▒  │───┐    ____  _                              _   _             _            
-     │           │───┘   / ___|| |_ _ __ ___  __ _ _ __ ___   | | | |_   _ _ __ | |_ ___ _ __ 
+     │ ▒▒▒▒▒▒▒▒  │──┐     ____  _                              _   _             _            
+     │           │──┘    / ___|| |_ _ __ ___  __ _ _ __ ___   | | | |_   _ _ __ | |_ ___ _ __ 
      └───┬───┬───┘       \___ \| __| '__/ _ \/ _` | '_ ` _ \  | |_| | | | | '_ \| __/ _ \ '__|
-    ├────┘   |            ___) | |_| | |  __/ (_| | | | | | | |  _  | |_| | | | | ||  __/ | 
+    ├────┘   │            ___) | |_| | |  __/ (_| | | | | | | |  _  | |_| | | | | ||  __/ | 
     ├────────┘           |____/ \__|_|  \___|\__,_|_| |_| |_| |_| |_|\__,_|_| |_|\__\___|_|  
 
 """ + terminalColors.ENDC)                                                                 
@@ -90,9 +90,11 @@ except:
 
 print('Gathering clues about {}...'.format(args.ip))
 
+clues = []
+
 try:
     hostname = socket.gethostbyaddr(args.ip)[0]
-
+    clues.append(hostname)
     printSuccess('Obtained hostname ({})'.format(hostname))
 except:
     printError('Failed to obtain hostname')
@@ -102,6 +104,7 @@ mac = obtainMac(args.ip)
 if (mac is not None):
     macInfo = requests.get('https://api.maclookup.app/v2/macs/' + mac).json()
     printSuccess('Obtained mac address info (Address: {}, Company: {})'.format(mac, macInfo['company']))
+    clues.extend(macInfo['company'].lower().split(' '))
 else:
     printError('Failed to obtain MAC address from ip')
 
@@ -120,11 +123,40 @@ for port in range(1, 65535):
 for t in threads:
     t.join()
 
-
 spinner.stop()
 printSuccess('Open ports:\n{}'.format('\n'.join([ '\t- ' + str(e) + '/tcp' for e in openPorts ])))
 
-spinner = Halo(text='Attempting to fetch connection strings with ONVIF...', spinner='dots')
+webInterfaces = []
+
+spinner = Halo(text='Fetching clues from webpages...', spinner='dots')
+spinner.start()
+
+for p in openPorts:
+    r = None
+    try:
+        r = requests.get('http://{}:{}/'.format(args.ip, p), headers=normalHeaders, timeout=3)
+    except Exception as e:
+        try:
+            r = requests.get('https://{}:{}/'.format(args.ip, p),
+                                                        headers=normalHeaders,
+                                                        timeout=3,
+                                                        verify=False)
+        except Exception as e:
+            continue
+
+    if r.status_code == 200 and 'content-type' in r.headers and 'text/html' in r.headers['content-type']:
+        webInterfaces.append(r.url)
+        s = BeautifulSoup(r.text, 'xml')
+        title = s.find('title')
+        if title is not None:
+            clues.extend(title.text.lower().split(' '))
+
+spinner.stop()
+
+if len(webInterfaces) > 0:
+    printSuccess('Detected web UI\'s:\n{}'.format('\n'.join([ '\t- ' + e for e in webInterfaces ])))
+
+spinner = Halo(text='Attempting to fetch connection strings using ONVIF...', spinner='dots')
 spinner.start()
 
 getProfilesPayload = """
