@@ -55,6 +55,12 @@ def scanPort(ip, p, l):
         l.append(p)
     s.close()
 
+def filterClues(el, bannedWords):
+    for e in bannedWords:
+        if e in el:
+            return False 
+    return True
+
 parser = argparse.ArgumentParser(
     prog='streamhunter',
     description='Automatically find the streaming URL for a specific IP Camera'
@@ -111,7 +117,7 @@ else:
 spinner = Halo(text='Scanning ports...', spinner='dots')
 spinner.start()
 
-openPorts = [5000]
+openPorts = []
 
 threads = []
 
@@ -128,7 +134,7 @@ printSuccess('Open ports:\n{}'.format('\n'.join([ '\t- ' + str(e) + '/tcp' for e
 
 webInterfaces = []
 
-spinner = Halo(text='Fetching clues from webpages...', spinner='dots')
+spinner.text = 'Fetching clues from webpages...'
 spinner.start()
 
 for p in openPorts:
@@ -156,7 +162,7 @@ spinner.stop()
 if len(webInterfaces) > 0:
     printSuccess('Detected web UI\'s:\n{}'.format('\n'.join([ '\t- ' + e for e in webInterfaces ])))
 
-spinner = Halo(text='Attempting to fetch connection strings using ONVIF...', spinner='dots')
+spinner.text = 'Attempting to fetch connection strings using ONVIF...'
 spinner.start()
 
 getProfilesPayload = """
@@ -229,7 +235,9 @@ if len(onvifURLs) > 0:
 else:
     printError('No URL\'s found using ONVIF')
 
-spinner = Halo(text='Fetching connection strings database...', spinner='dots')
+clues = list(filter(lambda e: filterClues(e, ['inc', 'corp', 'technology', 'web', 'cctv', 'service']), clues))
+
+spinner.text = 'Fetching camera makes...'
 spinner.start()
 
 modelsPage =  requests.get('https://www.ispyconnect.com/cameras', headers = normalHeaders)
@@ -255,22 +263,35 @@ if (modelsPage.status_code != 200):
 
 modelsSoup = BeautifulSoup(modelsPage.text, features='lxml')
 
-cameraMakes = [ (e.text, e.attrs['href']) for e in modelsSoup.body.find('table').find_all('a') ]
+cameraMakes = [ (e.text.lower(), e.attrs['href']) for e in modelsSoup.body.find('table').find_all('a') ]
 
-printSuccess('Fetched camera connection strings database...')
+printSuccess('Fetched camera makes')
 
-name, url = cameraMakes[0]
+for make, link in cameraMakes:
+    for c in clues:
+        if make in c:
+            printSuccess('Identified possible camera make ({})...'.format(make))
 
-urlsPage =  requests.get('https://www.ispyconnect.com/' + url, headers = normalHeaders)
+            spinner.text = 'Fetching connection strings..'
+            spinner.start()
 
-urlsSoup = BeautifulSoup(urlsPage.text, features='lxml')
+            urlsPage =  requests.get('https://www.ispyconnect.com/' + link, headers = normalHeaders)
 
-cameraUrlsRaw = [ e.find_all('td') for e in urlsSoup.body.find('table').find_all('tr') ]
+            urlsSoup = BeautifulSoup(urlsPage.text, features='lxml')
 
-cameraUrls = []
+            cameraUrlsRaw = [ e.find_all('td') for e in urlsSoup.body.find('table').find_all('tr') ]
 
-for e in cameraUrlsRaw:
-    if len(e) == 4:
-        cameraUrls.append((e[0].text.split(', '), e[1].text, e[2].text, e[3].text))
+            cameraUrls = []
 
-print(cameraUrls)
+            for e in cameraUrlsRaw:
+                if len(e) == 4:
+                    cameraUrls.append((e[0].text.split(', '), e[1].text, e[2].text, e[3].text))
+
+            spinner.stop()
+
+            printSuccess('Fetched connection strings for {}'.format(make))
+
+            spinner.text = 'Testing the connection strings\'s...'
+            spinner.start()
+
+print('Done')
