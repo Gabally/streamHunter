@@ -1,4 +1,4 @@
-import requests, sys, socket, argparse, ipaddress
+import requests, sys, socket, argparse, ipaddress, subprocess, tempfile, os
 from bs4 import BeautifulSoup
 from random import randint
 from halo import Halo
@@ -60,6 +60,17 @@ def filterClues(el, bannedWords):
         if e in el:
             return False 
     return True
+
+def testRTSP(uri):
+    out = tempfile.mktemp() + '.jpg'
+    try:
+        subprocess.Popen(['ffmpeg', '-y', '-i', uri, '-vframes', '1', out])
+    except:
+        pass
+    if not os.path.exists(out):
+        return False
+    else:
+        pass #TO-DO
 
 parser = argparse.ArgumentParser(
     prog='streamhunter',
@@ -293,5 +304,11 @@ for make, link in cameraMakes:
 
             spinner.text = 'Testing the connection strings\'s...'
             spinner.start()
+
+            for models, streamType, protocol, path in cameraUrls:
+                if 'rtsp' in protocol:
+                    pass # TO-DO  
+                elif 'http' in protocol:
+                    pass # TO-DO
 
 print('Done')
