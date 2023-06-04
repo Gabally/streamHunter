@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 from random import randint
 from halo import Halo
 from threading import Thread
+import png, base64
 
 class terminalColors:
     HEADER = '\033[95m'
@@ -62,7 +63,7 @@ def filterClues(el, bannedWords):
     return True
 
 def testRTSP(uri):
-    out = tempfile.mktemp() + '.jpg'
+    out = tempfile.mktemp() + '.png'
     try:
         subprocess.Popen(['ffmpeg', '-y', '-i', uri, '-vframes', '1', out])
     except:
@@ -70,7 +71,29 @@ def testRTSP(uri):
     if not os.path.exists(out):
         return False
     else:
-        pass #TO-DO
+        try:
+            r = png.Reader(file=open(out, 'rb'))
+            r.read()
+        except Exception as e:
+            print(e)
+            return False
+
+def testHTTPStreaming(user, password, ip, port, path):
+    try:
+        r = requests.get('http://{}:{}@{}:{}{}'.format(user, password, ip, port, ('/' + path) if not path.startswith('/') else path), stream=True)
+        if r.status_code == 200:
+            return r.url
+        else:
+            raise Exception('http not working')
+    except:
+        try:
+            r = requests.get('https://{}:{}@{}:{}{}'.format(user, password, ip, port, ('/' + path) if not path.startswith('/') else path), stream=True)
+            if r.status_code == 200:
+                return r.url
+            else:
+                return None
+        except:
+            return None
 
 parser = argparse.ArgumentParser(
     prog='streamhunter',
@@ -81,11 +104,11 @@ parser.add_argument('--ip',  required=True, type=str, help='The IP Camera addres
 
 group = parser.add_mutually_exclusive_group(required=True)
 
-group.add_argument('--default-credentials', nargs='?', default=argparse.SUPPRESS, help='Tries to authenticate using a list of commonm default credentials')
+group.add_argument('--default-credentials', dest='defaultCredentials', nargs='?', default=argparse.SUPPRESS, help='Tries to authenticate using a list of commonm default credentials')
 
 group.add_argument('--user', type=str, help='The user to use to authenticate')
 
-parser.add_argument('--pass', type=str, help='The password to use to authenticate', required= '--user' in sys.argv)
+parser.add_argument('--password', type=str, help='The password to use to authenticate', required= '--user' in sys.argv)
 
 print(terminalColors.BOLD + terminalColors.OKBLUE + """
      ┌───────────┐
@@ -246,7 +269,7 @@ if len(onvifURLs) > 0:
 else:
     printError('No URL\'s found using ONVIF')
 
-clues = list(filter(lambda e: filterClues(e, ['inc', 'corp', 'technology', 'web', 'cctv', 'service']), clues))
+clues = list(filter(lambda e: filterClues(e, ['inc', 'corp', 'technology', 'web', 'cctv', 'service', 'ltd']), clues))
 
 spinner.text = 'Fetching camera makes...'
 spinner.start()
@@ -278,6 +301,33 @@ cameraMakes = [ (e.text.lower(), e.attrs['href']) for e in modelsSoup.body.find(
 
 printSuccess('Fetched camera makes')
 
+validURLs = []
+
+defaultCredentials = [
+    ('admin', 'admin'),
+    ('admin', '1234'),
+    ('Admin', '1234'),
+    ('admin', '12345'),
+    ('admin', '123456'),
+    ('admin', '9999'),
+    ('root', 'root'),
+    ('888888', '888888'),
+    ('666666', '666666'),
+    ('admin', 'fliradmin'),
+    ('administrator', '1234'),
+    ('root', 'system'),
+    ('root', 'camera'),
+    ('root', 'admin'),
+    ('admin', 'jvc'),
+    ('root', 'ikwd'),
+    ('root', 'ikwb'),
+    ('supervisor', 'supervisor'),
+    ('ubnt', 'ubnt'),
+    ('admin', 'wbox123'),
+    ('admin', '4321'),
+    ('admin', '1111111'),
+]
+
 for make, link in cameraMakes:
     for c in clues:
         if make in c:
@@ -296,7 +346,7 @@ for make, link in cameraMakes:
 
             for e in cameraUrlsRaw:
                 if len(e) == 4:
-                    cameraUrls.append((e[0].text.split(', '), e[1].text, e[2].text, e[3].text))
+                    cameraUrls.append((e[0].text.split(', '), e[1].text, e[2].text.lower(), e[3].text))
 
             spinner.stop()
 
@@ -306,9 +356,49 @@ for make, link in cameraMakes:
             spinner.start()
 
             for models, streamType, protocol, path in cameraUrls:
+                path = path.replace('[CHANNEL]', '0')
+                path = path.replace('[WIDTH]', '320')
+                path = path.replace('[HEIGHT]', '240')
                 if 'rtsp' in protocol:
-                    pass # TO-DO  
+                    if 'defaultCredentials' in args:
+                        for user, password in defaultCredentials:
+                            path = path.replace('[USERNAME]', user)
+                            path = path.replace('[PASSWORD]', password)
+                            path = path.replace('[AUTH]', base64.b64encode('{}:{}'.format(user, password).encode('utf-8')).decode('utf-8'))
+                            url = 'rtsp://{}:{}@{}{}'.format(user, password, args.ip, ('/' + path) if not path.startswith('/') else path)
+                            if testRTSP(url):
+                                validURLs.append(url)
+                    else:
+                        path = path.replace('[USERNAME]', args.user)
+                        path = path.replace('[PASSWORD]', args.password)
+                        path = path.replace('[AUTH]', base64.b64encode('{}:{}'.format(args.user, args.password).encode('utf-8')).decode('utf-8'))
+                        url = 'rtsp://{}:{}@{}{}'.format(args.user, args.password, args.ip, ('/' + path) if not path.startswith('/') else path)
+                        if testRTSP(url):
+                            validURLs.append(url)
                 elif 'http' in protocol:
-                    pass # TO-DO
+                    if 'defaultCredentials' not in args:
+                        for user, password in defaultCredentials:
+                            path = path.replace('[USERNAME]', user)
+                            path = path.replace('[PASSWORD]', password)
+                            path = path.replace('[AUTH]', base64.b64encode('{}:{}'.format(user, password).encode('utf-8')).decode('utf-8'))
+                            for p in openPorts:
+                                url = testHTTPStreaming(user, password, args.ip, p, path)
+                                if (url is not None):
+                                    validURLs.append(url)
+                    else:
+                        path = path.replace('[USERNAME]', args.user)
+                        path = path.replace('[PASSWORD]', args.password)
+                        path = path.replace('[AUTH]', base64.b64encode('{}:{}'.format(args.user, args.password).encode('utf-8')).decode('utf-8'))
+                        for p in openPorts:
+                               url = testHTTPStreaming(args.user, args.password, args.ip, p, path)
+                               if (url is not None):
+                                   validURLs.append(url) 
+
+            spinner.stop()
+
+
+printSuccess('URL\'s found:\n{}'.format('\n'.join([ '\t- ' + e for e in validURLs ])))
+
+
 
 print('Done')
