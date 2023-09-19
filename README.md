@@ -14,6 +14,8 @@ and
 python3 streamHunter.py
 `
 
+(ffmpeg is also required or rtsp streaming testing won't be enabled)
+
 ## Screenshots
 
 ![](screenshot.png)
